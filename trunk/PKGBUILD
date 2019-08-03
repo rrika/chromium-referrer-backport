@@ -28,7 +28,8 @@ source=(https://commondatastorage.googleapis.com/chromium-browser-official/$pkgn
         chromium-fix-the-flash-for-new-windows.patch
         chromium-fix-window-flash-for-some-WMs.patch
         chromium-widevine.patch
-        chromium-skia-harmony.patch)
+        chromium-skia-harmony.patch
+        chromium-metadata.patch)
 sha256sums=('d178c7842f8f858ac876d88ce866cbd2132d7ca6c73940613ebf7e9c3fada986'
             '04917e3cd4307d8e31bfb0027a5dce6d086edb10ff8a716024fbb8bb0c7dccf1'
             'e2d284311f49c529ea45083438a768db390bde52949995534034d2a814beab89'
@@ -36,7 +37,8 @@ sha256sums=('d178c7842f8f858ac876d88ce866cbd2132d7ca6c73940613ebf7e9c3fada986'
             '6d82c052eb1f1ae5644a09f7ad7a88d9e2966d1836124445ca4df93b7657c10a'
             '183d8cc712f0bcf1afcb01ce90c4c104a4c8d8070a06f94974a28b007d9e2ce4'
             'd081f2ef8793544685aad35dea75a7e6264a2cb987ff3541e6377f4a3650a28b'
-            '5887f78b55c4ecbbcba5930f3f0bb7bc0117c2a41c2f761805fcf7f46f1ca2b3')
+            '5887f78b55c4ecbbcba5930f3f0bb7bc0117c2a41c2f761805fcf7f46f1ca2b3'
+            '0b927b23aee065bfa5dfc955b636a7c2d0dc51b2de2cb3fa93c56cb3a710659b')
 
 # Possible replacements are listed in build/linux/unbundle/replace_gn_files.py
 # Keys are the names in the above script; values are the dependencies in Arch
@@ -101,6 +103,9 @@ prepare() {
 
   # https://bugs.gentoo.org/661880#c21
   patch -Np1 -i ../chromium-system-icu.patch
+
+  # write referrer/origin attributes again
+  patch -Rp1 -i ../chromium-metadata.patch
 
   # Force script incompatible with Python 3 to use /usr/bin/python2
   sed -i '1s|python$|&2|' third_party/dom_distiller_js/protoc_plugins/*.py
