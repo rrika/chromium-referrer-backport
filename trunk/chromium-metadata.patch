@@ -2,7 +2,7 @@ diff --git a/chrome/browser/download/download_browsertest.cc b/chrome/browser/do
 index 816eed3..a820398 100644
 --- a/chrome/browser/download/download_browsertest.cc
 +++ b/chrome/browser/download/download_browsertest.cc
-@@ -1228,7 +1228,7 @@
+@@ -1260,7 +1260,7 @@
    CheckDownload(browser(), file, file);
  }
  
@@ -11,13 +11,14 @@ index 816eed3..a820398 100644
  // Download a file and confirm that the file is correctly quarantined.
  //
  // TODO(asanka): We should enable the test on Mac as well, but currently
-@@ -1252,9 +1252,7 @@
-   EXPECT_TRUE(download::IsFileQuarantined(downloaded_file, url, GURL()));
+@@ -1284,9 +1284,7 @@
+   EXPECT_TRUE(quarantine::IsFileQuarantined(downloaded_file, url, GURL()));
    CheckDownload(browser(), file, file);
  }
 -#endif
- 
+-
 -#if defined(OS_WIN)
++
  // A couple of Windows specific tests to make sure we respect OS specific
  // restrictions on Mark-Of-The-Web can be applied. While Chrome doesn't directly
  // apply these policies, Chrome still needs to make sure the correct APIs are
@@ -53,26 +54,26 @@ index 40b5c1e..f197d97 100644
    base::ScopedTempDir temp_dir;
 @@ -265,7 +262,7 @@
    ASSERT_TRUE(base::PathExists(actual_filename));
-   EXPECT_TRUE(download::IsFileQuarantined(actual_filename, GURL(), GURL()));
+   EXPECT_TRUE(quarantine::IsFileQuarantined(actual_filename, GURL(), GURL()));
  }
 -#endif  // defined(OS_WIN) || defined(OS_LINUX) && !defined(OS_CHROMEOS)
 +#endif  // defined(OS_WIN)
  
  #if defined(FULL_SAFE_BROWSING)
  // These tests only make sense when SafeBrowsing is enabled. They verify
-diff --git a/components/download/quarantine/BUILD.gn b/components/download/quarantine/BUILD.gn
+diff --git a/components/services/quarantine/BUILD.gn b/components/services/quarantine/BUILD.gn
 index fafcb74..4ce7b5b 100644
---- a/components/download/quarantine/BUILD.gn
-+++ b/components/download/quarantine/BUILD.gn
+--- a/components/services/quarantine/BUILD.gn
++++ b/components/services/quarantine/BUILD.gn
 @@ -14,7 +14,6 @@
      "quarantine.h",
-     "quarantine_features_win.cc",
-     "quarantine_features_win.h",
+     "quarantine_impl.cc",
+     "quarantine_impl.h",
 -    "quarantine_linux.cc",
      "quarantine_mac.mm",
-     "quarantine_win.cc",
-   ]
-@@ -36,8 +35,6 @@
+     "quarantine_service.cc",
+     "quarantine_service.h",
+@@ -47,8 +46,6 @@
  
  source_set("common") {
    sources = [
@@ -81,7 +82,7 @@ index fafcb74..4ce7b5b 100644
      "common_mac.h",
      "common_mac.mm",
      "common_win.cc",
-@@ -62,7 +59,6 @@
+@@ -73,7 +70,6 @@
    sources = [
      "test_support.cc",
      "test_support.h",
@@ -89,7 +90,7 @@ index fafcb74..4ce7b5b 100644
      "test_support_mac.mm",
      "test_support_win.cc",
    ]
-@@ -86,7 +82,6 @@
+@@ -97,7 +93,6 @@
    testonly = true
  
    sources = [
@@ -97,38 +98,38 @@ index fafcb74..4ce7b5b 100644
      "quarantine_mac_unittest.mm",
      "quarantine_win_unittest.cc",
    ]
-diff --git a/components/download/quarantine/common_linux.cc b/components/download/quarantine/common_linux.cc
+diff --git a/components/services/quarantine/common_linux.cc b/components/services/quarantine/common_linux.cc
 deleted file mode 100644
 index 3674c8c..0000000
---- a/components/download/quarantine/common_linux.cc
+--- a/components/services/quarantine/common_linux.cc
 +++ /dev/null
 @@ -1,12 +0,0 @@
 -// Copyright 2018 The Chromium Authors. All rights reserved.
 -// Use of this source code is governed by a BSD-style license that can be
 -// found in the LICENSE file.
 -
--#include "components/download/quarantine/common_linux.h"
+-#include "components/services/quarantine/common_linux.h"
 -
--namespace download {
+-namespace quarantine {
 -
 -const char kSourceURLExtendedAttrName[] = "user.xdg.origin.url";
 -const char kReferrerURLExtendedAttrName[] = "user.xdg.referrer.url";
 -
--}  // namespace download
-diff --git a/components/download/quarantine/common_linux.h b/components/download/quarantine/common_linux.h
+-}  // namespace quarantine
+diff --git a/components/services/quarantine/common_linux.h b/components/services/quarantine/common_linux.h
 deleted file mode 100644
 index 6b52b1b..0000000
---- a/components/download/quarantine/common_linux.h
+--- a/components/services/quarantine/common_linux.h
 +++ /dev/null
 @@ -1,21 +0,0 @@
 -// Copyright 2018 The Chromium Authors. All rights reserved.
 -// Use of this source code is governed by a BSD-style license that can be
 -// found in the LICENSE file.
 -
--#ifndef COMPONENTS_DOWNLOAD_QUARANTINE_COMMON_LINUX_H_
--#define COMPONENTS_DOWNLOAD_QUARANTINE_COMMON_LINUX_H_
+-#ifndef COMPONENTS_SERVICES_QUARANTINE_COMMON_LINUX_H_
+-#define COMPONENTS_SERVICES_QUARANTINE_COMMON_LINUX_H_
 -
--namespace download {
+-namespace quarantine {
 -
 -// Attribute names to be used with setxattr and friends.
 -//
@@ -139,13 +140,13 @@ index 6b52b1b..0000000
 -extern const char kSourceURLExtendedAttrName[];
 -extern const char kReferrerURLExtendedAttrName[];
 -
--}  // namespace download
+-}  // namespace quarantine
 -
--#endif  // COMPONENTS_DOWNLOAD_QUARANTINE_COMMON_LINUX_H_
-diff --git a/components/download/quarantine/quarantine.cc b/components/download/quarantine/quarantine.cc
+-#endif  // COMPONENTS_SERVICES_QUARANTINE_COMMON_LINUX_H_
+diff --git a/components/services/quarantine/quarantine.cc b/components/services/quarantine/quarantine.cc
 index 48a2c59..ac5b109 100644
---- a/components/download/quarantine/quarantine.cc
-+++ b/components/download/quarantine/quarantine.cc
+--- a/components/services/quarantine/quarantine.cc
++++ b/components/services/quarantine/quarantine.cc
 @@ -6,7 +6,7 @@
  
  #include "build/build_config.h"
@@ -153,25 +154,25 @@ index 48a2c59..ac5b109 100644
 -#if !defined(OS_WIN) && !defined(OS_MACOSX) && !defined(OS_LINUX)
 +#if !defined(OS_WIN) && !defined(OS_MACOSX)
  
- namespace download {
+ namespace quarantine {
  
 @@ -19,4 +19,4 @@
  
- }  // namespace download
+ }  // namespace quarantine
  
 -#endif  // !WIN && !MAC && !LINUX
 +#endif  // !WIN && !MAC
-diff --git a/components/download/quarantine/quarantine_linux.cc b/components/download/quarantine/quarantine_linux.cc
+diff --git a/components/services/quarantine/quarantine_linux.cc b/components/services/quarantine/quarantine_linux.cc
 deleted file mode 100644
 index 8683056..0000000
---- a/components/download/quarantine/quarantine_linux.cc
+--- a/components/services/quarantine/quarantine_linux.cc
 +++ /dev/null
 @@ -1,64 +0,0 @@
 -// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 -// Use of this source code is governed by a BSD-style license that can be
 -// found in the LICENSE file.
 -
--#include "components/download/quarantine/quarantine.h"
+-#include "components/services/quarantine/quarantine.h"
 -
 -#include <stddef.h>
 -#include <sys/types.h>
@@ -180,10 +181,10 @@ index 8683056..0000000
 -#include "base/files/file_path.h"
 -#include "base/logging.h"
 -#include "base/threading/scoped_blocking_call.h"
--#include "components/download/quarantine/common_linux.h"
+-#include "components/services/quarantine/common_linux.h"
 -#include "url/gurl.h"
 -
--namespace download {
+-namespace quarantine {
 -
 -namespace {
 -
@@ -230,18 +231,18 @@ index 8683056..0000000
 -             : QuarantineFileResult::ANNOTATION_FAILED;
 -}
 -
--}  // namespace download
-diff --git a/components/download/quarantine/quarantine_linux_unittest.cc b/components/download/quarantine/quarantine_linux_unittest.cc
+-}  // namespace quarantine
+diff --git a/components/services/quarantine/quarantine_linux_unittest.cc b/components/services/quarantine/quarantine_linux_unittest.cc
 deleted file mode 100644
 index 3216420..0000000
---- a/components/download/quarantine/quarantine_linux_unittest.cc
+--- a/components/services/quarantine/quarantine_linux_unittest.cc
 +++ /dev/null
 @@ -1,183 +0,0 @@
 -// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 -// Use of this source code is governed by a BSD-style license that can be
 -// found in the LICENSE file.
 -
--#include "components/download/quarantine/quarantine.h"
+-#include "components/services/quarantine/quarantine.h"
 -
 -#include <errno.h>
 -#include <stddef.h>
@@ -258,12 +259,12 @@ index 3216420..0000000
 -#include "base/logging.h"
 -#include "base/stl_util.h"
 -#include "base/strings/string_split.h"
--#include "components/download/quarantine/common_linux.h"
--#include "components/download/quarantine/test_support.h"
+-#include "components/services/quarantine/common_linux.h"
+-#include "components/services/quarantine/test_support.h"
 -#include "testing/gtest/include/gtest/gtest.h"
 -#include "url/gurl.h"
 -
--namespace download {
+-namespace quarantine {
 -namespace {
 -
 -using std::istringstream;
@@ -419,11 +420,11 @@ index 3216420..0000000
 -      IsFileQuarantined(fully_annotated, referrer_url(), referrer_url()));
 -}
 -
--}  // namespace download
-diff --git a/components/download/quarantine/test_support.cc b/components/download/quarantine/test_support.cc
+-}  // namespace quarantine
+diff --git a/components/services/quarantine/test_support.cc b/components/services/quarantine/test_support.cc
 index e158051ae..55ef062 100644
---- a/components/download/quarantine/test_support.cc
-+++ b/components/download/quarantine/test_support.cc
+--- a/components/services/quarantine/test_support.cc
++++ b/components/services/quarantine/test_support.cc
 @@ -6,7 +6,7 @@
  
  #include "build/build_config.h"
@@ -431,25 +432,25 @@ index e158051ae..55ef062 100644
 -#if !defined(OS_WIN) && !defined(OS_MACOSX) && !defined(OS_LINUX)
 +#if !defined(OS_WIN) && !defined(OS_MACOSX)
  
- namespace download {
+ namespace quarantine {
  
 @@ -18,4 +18,4 @@
  
- }  // namespace download
+ }  // namespace quarantine
  
 -#endif  // !WIN && !MAC && !LINUX
 +#endif  // !WIN && !MAC
-diff --git a/components/download/quarantine/test_support_linux.cc b/components/download/quarantine/test_support_linux.cc
+diff --git a/components/services/quarantine/test_support_linux.cc b/components/services/quarantine/test_support_linux.cc
 deleted file mode 100644
 index 63f8020..0000000
---- a/components/download/quarantine/test_support_linux.cc
+--- a/components/services/quarantine/test_support_linux.cc
 +++ /dev/null
 @@ -1,58 +0,0 @@
 -// Copyright 2018 The Chromium Authors. All rights reserved.
 -// Use of this source code is governed by a BSD-style license that can be
 -// found in the LICENSE file.
 -
--#include "components/download/quarantine/test_support.h"
+-#include "components/services/quarantine/test_support.h"
 -
 -#include <stddef.h>
 -#include <sys/types.h>
@@ -460,10 +461,10 @@ index 63f8020..0000000
 -#include "base/files/file_path.h"
 -#include "base/files/file_util.h"
 -#include "base/threading/scoped_blocking_call.h"
--#include "components/download/quarantine/common_linux.h"
+-#include "components/services/quarantine/common_linux.h"
 -#include "url/gurl.h"
 -
--namespace download {
+-namespace quarantine {
 -
 -namespace {
 -
@@ -502,4 +503,4 @@ index 63f8020..0000000
 -             referrer_url;
 -}
 -
--}  // namespace download
+-}  // namespace quarantine
