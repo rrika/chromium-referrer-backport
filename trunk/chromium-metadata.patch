@@ -1,7 +1,7 @@
 diff -urN a/chrome/browser/download/download_browsertest.cc b/chrome/browser/download/download_browsertest.cc
---- a/chrome/browser/download/download_browsertest.cc	2019-10-27 01:17:57.325563389 +0000
-+++ b/chrome/browser/download/download_browsertest.cc	2019-10-27 01:19:14.203034538 +0000
-@@ -1256,7 +1256,7 @@
+--- a/chrome/browser/download/download_browsertest.cc	2022-10-25 22:50:05.781112992 +0100
++++ b/chrome/browser/download/download_browsertest.cc	2022-10-25 22:54:13.156282884 +0100
+@@ -1377,7 +1377,7 @@
    CheckDownload(browser(), file, file);
  }
  
@@ -10,7 +10,7 @@ diff -urN a/chrome/browser/download/download_browsertest.cc b/chrome/browser/dow
  // Download a file and confirm that the file is correctly quarantined.
  //
  // TODO(asanka): We should enable the test on Mac as well, but currently
-@@ -1280,7 +1280,9 @@
+@@ -1401,7 +1401,9 @@
    EXPECT_TRUE(quarantine::IsFileQuarantined(downloaded_file, url, GURL()));
    CheckDownload(browser(), file, file);
  }
@@ -21,38 +21,21 @@ diff -urN a/chrome/browser/download/download_browsertest.cc b/chrome/browser/dow
  // restrictions on Mark-Of-The-Web can be applied. While Chrome doesn't directly
  // apply these policies, Chrome still needs to make sure the correct APIs are
 diff -urN a/chrome/test/ppapi/ppapi_filechooser_browsertest.cc b/chrome/test/ppapi/ppapi_filechooser_browsertest.cc
---- a/chrome/test/ppapi/ppapi_filechooser_browsertest.cc	2019-10-27 01:17:57.325563389 +0000
-+++ b/chrome/test/ppapi/ppapi_filechooser_browsertest.cc	2019-10-27 01:20:14.047316609 +0000
-@@ -236,19 +236,24 @@
+--- a/chrome/test/ppapi/ppapi_filechooser_browsertest.cc	2022-10-25 22:50:05.781112992 +0100
++++ b/chrome/test/ppapi/ppapi_filechooser_browsertest.cc	2022-10-25 23:02:31.301577031 +0100
+@@ -236,7 +236,7 @@
    RunTestViaHTTP("FileChooser_SaveAsCancel");
  }
  
 -#if defined(OS_WIN)
--// On Windows, tests that a file downloaded via PPAPI FileChooser API has the
--// mark-of-the-web. The PPAPI FileChooser implementation invokes QuarantineFile
--// in order to mark the file as being downloaded from the web as soon as the
--// file is created. This MotW prevents the file being opened without due
--// security warnings if the file is executable.
--//
--// This test is disabled on Mac even though quarantine support is implemented on
--// Mac. New files created on Mac only receive the MOTW if the process creating
--// them comes from an app with LSFileQuarantineEnabled in its Info.plist. Since
--// PPAPI delegates file creation to the browser process, which in browser_tests
--// is not part of an app, files downloaded by them do not receive the MOTW and
--// this test fails.
 +#if defined(OS_WIN) || defined(OS_LINUX) && !defined(OS_CHROMEOS)
-+// On Windows, tests that a file downloaded via PPAPI FileChooser API has the
-+// mark-of-the-web. The PPAPI FileChooser implementation invokes QuarantineFile
-+// in order to mark the file as being downloaded from the web as soon as the
-+// file is created. This MOTW prevents the file being opened without due
-+// security warnings if the file is executable.
-+//
-+// This test is disabled on Mac even though quarantine support is implemented on
-+// Mac. New files created on Mac only receive the MOTW if the process creating
-+// them comes from an app with LSFileQuarantineEnabled in its Info.plist. Since
-+// PPAPI delegates file creation to the browser process, which in browser_tests
-+// is not part of an app, files downloaded by them do not receive the MOTW and
-+// this test fails.
+ // On Windows, tests that a file downloaded via PPAPI FileChooser API has the
+ // mark-of-the-web. The PPAPI FileChooser implementation invokes QuarantineFile
+ // in order to mark the file as being downloaded from the web as soon as the
+@@ -249,6 +249,11 @@
+ // PPAPI delegates file creation to the browser process, which in browser_tests
+ // is not part of an app, files downloaded by them do not receive the MOTW and
+ // this test fails.
 +//
 +// On Linux Desktop, the setxattr call is made to set 'user.xdg.origin.url' and
 +// the non-standard 'user.xdg.referrer.url' extended attributes to accomplish
@@ -71,8 +54,8 @@ diff -urN a/chrome/test/ppapi/ppapi_filechooser_browsertest.cc b/chrome/test/ppa
  #if BUILDFLAG(FULL_SAFE_BROWSING)
  // These tests only make sense when SafeBrowsing is enabled. They verify
 diff -urN a/components/services/quarantine/BUILD.gn b/components/services/quarantine/BUILD.gn
---- a/components/services/quarantine/BUILD.gn	2019-10-27 01:17:57.325563389 +0000
-+++ b/components/services/quarantine/BUILD.gn	2019-10-27 01:21:20.125282291 +0000
+--- a/components/services/quarantine/BUILD.gn	2022-10-25 22:50:05.781112992 +0100
++++ b/components/services/quarantine/BUILD.gn	2022-10-25 22:56:54.905657407 +0100
 @@ -14,6 +14,7 @@
      "quarantine.h",
      "quarantine_impl.cc",
@@ -81,7 +64,7 @@ diff -urN a/components/services/quarantine/BUILD.gn b/components/services/quaran
      "quarantine_mac.mm",
      "quarantine_win.cc",
    ]
-@@ -45,6 +46,8 @@
+@@ -43,6 +44,8 @@
    sources = [
      "common.cc",
      "common.h",
@@ -90,7 +73,7 @@ diff -urN a/components/services/quarantine/BUILD.gn b/components/services/quaran
      "common_mac.h",
      "common_mac.mm",
      "common_win.cc",
-@@ -70,6 +73,7 @@
+@@ -68,6 +71,7 @@
    sources = [
      "test_support.cc",
      "test_support.h",
@@ -98,7 +81,7 @@ diff -urN a/components/services/quarantine/BUILD.gn b/components/services/quaran
      "test_support_mac.mm",
      "test_support_win.cc",
    ]
-@@ -94,6 +98,7 @@
+@@ -92,6 +96,7 @@
  
    sources = [
      "common_unittests.cc",
@@ -108,7 +91,7 @@ diff -urN a/components/services/quarantine/BUILD.gn b/components/services/quaran
      "quarantine_win_unittest.cc",
 diff -urN a/components/services/quarantine/common_linux.cc b/components/services/quarantine/common_linux.cc
 --- a/components/services/quarantine/common_linux.cc	1970-01-01 01:00:00.000000000 +0100
-+++ b/components/services/quarantine/common_linux.cc	2019-10-27 01:17:57.328896745 +0000
++++ b/components/services/quarantine/common_linux.cc	2022-10-25 22:50:05.784446299 +0100
 @@ -0,0 +1,12 @@
 +// Copyright 2018 The Chromium Authors. All rights reserved.
 +// Use of this source code is governed by a BSD-style license that can be
@@ -124,7 +107,7 @@ diff -urN a/components/services/quarantine/common_linux.cc b/components/services
 +}  // namespace quarantine
 diff -urN a/components/services/quarantine/common_linux.h b/components/services/quarantine/common_linux.h
 --- a/components/services/quarantine/common_linux.h	1970-01-01 01:00:00.000000000 +0100
-+++ b/components/services/quarantine/common_linux.h	2019-10-27 01:17:57.328896745 +0000
++++ b/components/services/quarantine/common_linux.h	2022-10-25 22:50:05.784446299 +0100
 @@ -0,0 +1,21 @@
 +// Copyright 2018 The Chromium Authors. All rights reserved.
 +// Use of this source code is governed by a BSD-style license that can be
@@ -148,8 +131,8 @@ diff -urN a/components/services/quarantine/common_linux.h b/components/services/
 +
 +#endif  // COMPONENTS_SERVICES_QUARANTINE_COMMON_LINUX_H_
 diff -urN a/components/services/quarantine/quarantine.cc b/components/services/quarantine/quarantine.cc
---- a/components/services/quarantine/quarantine.cc	2019-10-27 01:17:57.328896745 +0000
-+++ b/components/services/quarantine/quarantine.cc	2019-10-27 01:21:38.329011817 +0000
+--- a/components/services/quarantine/quarantine.cc	2022-10-25 22:50:05.781112992 +0100
++++ b/components/services/quarantine/quarantine.cc	2022-10-25 22:57:24.415565699 +0100
 @@ -6,7 +6,7 @@
  
  #include "build/build_config.h"
@@ -167,7 +150,7 @@ diff -urN a/components/services/quarantine/quarantine.cc b/components/services/q
 +#endif  // !WIN && !MAC && !LINUX
 diff -urN a/components/services/quarantine/quarantine_linux.cc b/components/services/quarantine/quarantine_linux.cc
 --- a/components/services/quarantine/quarantine_linux.cc	1970-01-01 01:00:00.000000000 +0100
-+++ b/components/services/quarantine/quarantine_linux.cc	2019-10-27 01:17:57.328896745 +0000
++++ b/components/services/quarantine/quarantine_linux.cc	2022-10-25 22:50:05.784446299 +0100
 @@ -0,0 +1,64 @@
 +// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 +// Use of this source code is governed by a BSD-style license that can be
@@ -235,7 +218,7 @@ diff -urN a/components/services/quarantine/quarantine_linux.cc b/components/serv
 +}  // namespace quarantine
 diff -urN a/components/services/quarantine/quarantine_linux_unittest.cc b/components/services/quarantine/quarantine_linux_unittest.cc
 --- a/components/services/quarantine/quarantine_linux_unittest.cc	1970-01-01 01:00:00.000000000 +0100
-+++ b/components/services/quarantine/quarantine_linux_unittest.cc	2019-10-27 01:17:57.328896745 +0000
++++ b/components/services/quarantine/quarantine_linux_unittest.cc	2022-10-25 22:50:05.784446299 +0100
 @@ -0,0 +1,183 @@
 +// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 +// Use of this source code is governed by a BSD-style license that can be
@@ -421,8 +404,8 @@ diff -urN a/components/services/quarantine/quarantine_linux_unittest.cc b/compon
 +
 +}  // namespace quarantine
 diff -urN a/components/services/quarantine/test_support.cc b/components/services/quarantine/test_support.cc
---- a/components/services/quarantine/test_support.cc	2019-10-27 01:17:57.328896745 +0000
-+++ b/components/services/quarantine/test_support.cc	2019-10-27 01:21:51.125965714 +0000
+--- a/components/services/quarantine/test_support.cc	2022-10-25 22:50:05.781112992 +0100
++++ b/components/services/quarantine/test_support.cc	2022-10-25 22:57:17.092254554 +0100
 @@ -6,7 +6,7 @@
  
  #include "build/build_config.h"
@@ -440,7 +423,7 @@ diff -urN a/components/services/quarantine/test_support.cc b/components/services
 +#endif  // !WIN && !MAC && !LINUX
 diff -urN a/components/services/quarantine/test_support_linux.cc b/components/services/quarantine/test_support_linux.cc
 --- a/components/services/quarantine/test_support_linux.cc	1970-01-01 01:00:00.000000000 +0100
-+++ b/components/services/quarantine/test_support_linux.cc	2019-10-27 01:17:57.328896745 +0000
++++ b/components/services/quarantine/test_support_linux.cc	2022-10-25 22:50:05.784446299 +0100
 @@ -0,0 +1,58 @@
 +// Copyright 2018 The Chromium Authors. All rights reserved.
 +// Use of this source code is governed by a BSD-style license that can be
