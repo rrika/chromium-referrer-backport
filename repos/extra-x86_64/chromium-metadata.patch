@@ -1,0 +1,502 @@
+diff -urN a/chrome/browser/download/download_browsertest.cc b/chrome/browser/download/download_browsertest.cc
+--- a/chrome/browser/download/download_browsertest.cc	2019-10-27 01:17:57.325563389 +0000
++++ b/chrome/browser/download/download_browsertest.cc	2019-10-27 01:19:14.203034538 +0000
+@@ -1256,7 +1256,7 @@
+   CheckDownload(browser(), file, file);
+ }
+ 
+-#if defined(OS_WIN)
++#if defined(OS_WIN) || (defined(OS_LINUX) && !defined(OS_CHROMEOS))
+ // Download a file and confirm that the file is correctly quarantined.
+ //
+ // TODO(asanka): We should enable the test on Mac as well, but currently
+@@ -1280,7 +1280,9 @@
+   EXPECT_TRUE(quarantine::IsFileQuarantined(downloaded_file, url, GURL()));
+   CheckDownload(browser(), file, file);
+ }
++#endif
+ 
++#if defined(OS_WIN)
+ // A couple of Windows specific tests to make sure we respect OS specific
+ // restrictions on Mark-Of-The-Web can be applied. While Chrome doesn't directly
+ // apply these policies, Chrome still needs to make sure the correct APIs are
+diff -urN a/chrome/test/ppapi/ppapi_filechooser_browsertest.cc b/chrome/test/ppapi/ppapi_filechooser_browsertest.cc
+--- a/chrome/test/ppapi/ppapi_filechooser_browsertest.cc	2019-10-27 01:17:57.325563389 +0000
++++ b/chrome/test/ppapi/ppapi_filechooser_browsertest.cc	2019-10-27 01:20:14.047316609 +0000
+@@ -236,19 +236,24 @@
+   RunTestViaHTTP("FileChooser_SaveAsCancel");
+ }
+ 
+-#if defined(OS_WIN)
+-// On Windows, tests that a file downloaded via PPAPI FileChooser API has the
+-// mark-of-the-web. The PPAPI FileChooser implementation invokes QuarantineFile
+-// in order to mark the file as being downloaded from the web as soon as the
+-// file is created. This MotW prevents the file being opened without due
+-// security warnings if the file is executable.
+-//
+-// This test is disabled on Mac even though quarantine support is implemented on
+-// Mac. New files created on Mac only receive the MOTW if the process creating
+-// them comes from an app with LSFileQuarantineEnabled in its Info.plist. Since
+-// PPAPI delegates file creation to the browser process, which in browser_tests
+-// is not part of an app, files downloaded by them do not receive the MOTW and
+-// this test fails.
++#if defined(OS_WIN) || defined(OS_LINUX) && !defined(OS_CHROMEOS)
++// On Windows, tests that a file downloaded via PPAPI FileChooser API has the
++// mark-of-the-web. The PPAPI FileChooser implementation invokes QuarantineFile
++// in order to mark the file as being downloaded from the web as soon as the
++// file is created. This MOTW prevents the file being opened without due
++// security warnings if the file is executable.
++//
++// This test is disabled on Mac even though quarantine support is implemented on
++// Mac. New files created on Mac only receive the MOTW if the process creating
++// them comes from an app with LSFileQuarantineEnabled in its Info.plist. Since
++// PPAPI delegates file creation to the browser process, which in browser_tests
++// is not part of an app, files downloaded by them do not receive the MOTW and
++// this test fails.
++//
++// On Linux Desktop, the setxattr call is made to set 'user.xdg.origin.url' and
++// the non-standard 'user.xdg.referrer.url' extended attributes to accomplish
++// the same thing. See
++// https://www.freedesktop.org/wiki/CommonExtendedAttributes/.
+ IN_PROC_BROWSER_TEST_F(PPAPIFileChooserTest, FileChooser_Quarantine) {
+   base::ScopedAllowBlockingForTesting allow_blocking;
+   base::ScopedTempDir temp_dir;
+@@ -268,7 +273,7 @@
+   ASSERT_TRUE(base::PathExists(actual_filename));
+   EXPECT_TRUE(quarantine::IsFileQuarantined(actual_filename, GURL(), GURL()));
+ }
+-#endif  // defined(OS_WIN) || defined(OS_MACOSX)
++#endif  // defined(OS_WIN) || defined(OS_LINUX) && !defined(OS_CHROMEOS)
+ 
+ #if BUILDFLAG(FULL_SAFE_BROWSING)
+ // These tests only make sense when SafeBrowsing is enabled. They verify
+diff -urN a/components/services/quarantine/BUILD.gn b/components/services/quarantine/BUILD.gn
+--- a/components/services/quarantine/BUILD.gn	2019-10-27 01:17:57.325563389 +0000
++++ b/components/services/quarantine/BUILD.gn	2019-10-27 01:21:20.125282291 +0000
+@@ -14,6 +14,7 @@
+     "quarantine.h",
+     "quarantine_impl.cc",
+     "quarantine_impl.h",
++    "quarantine_linux.cc",
+     "quarantine_mac.mm",
+     "quarantine_win.cc",
+   ]
+@@ -45,6 +46,8 @@
+   sources = [
+     "common.cc",
+     "common.h",
++    "common_linux.cc",
++    "common_linux.h",
+     "common_mac.h",
+     "common_mac.mm",
+     "common_win.cc",
+@@ -70,6 +73,7 @@
+   sources = [
+     "test_support.cc",
+     "test_support.h",
++    "test_support_linux.cc",
+     "test_support_mac.mm",
+     "test_support_win.cc",
+   ]
+@@ -94,6 +98,7 @@
+ 
+   sources = [
+     "common_unittests.cc",
++    "quarantine_linux_unittest.cc",
+     "quarantine_mac_unittest.mm",
+     "quarantine_service_unittest.cc",
+     "quarantine_win_unittest.cc",
+diff -urN a/components/services/quarantine/common_linux.cc b/components/services/quarantine/common_linux.cc
+--- a/components/services/quarantine/common_linux.cc	1970-01-01 01:00:00.000000000 +0100
++++ b/components/services/quarantine/common_linux.cc	2019-10-27 01:17:57.328896745 +0000
+@@ -0,0 +1,12 @@
++// Copyright 2018 The Chromium Authors. All rights reserved.
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#include "components/services/quarantine/common_linux.h"
++
++namespace quarantine {
++
++const char kSourceURLExtendedAttrName[] = "user.xdg.origin.url";
++const char kReferrerURLExtendedAttrName[] = "user.xdg.referrer.url";
++
++}  // namespace quarantine
+diff -urN a/components/services/quarantine/common_linux.h b/components/services/quarantine/common_linux.h
+--- a/components/services/quarantine/common_linux.h	1970-01-01 01:00:00.000000000 +0100
++++ b/components/services/quarantine/common_linux.h	2019-10-27 01:17:57.328896745 +0000
+@@ -0,0 +1,21 @@
++// Copyright 2018 The Chromium Authors. All rights reserved.
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#ifndef COMPONENTS_SERVICES_QUARANTINE_COMMON_LINUX_H_
++#define COMPONENTS_SERVICES_QUARANTINE_COMMON_LINUX_H_
++
++namespace quarantine {
++
++// Attribute names to be used with setxattr and friends.
++//
++// The source URL attribute is part of the XDG standard.
++// The referrer URL attribute is not part of the XDG standard,
++// but it is used to keep the naming consistent.
++// http://freedesktop.org/wiki/CommonExtendedAttributes
++extern const char kSourceURLExtendedAttrName[];
++extern const char kReferrerURLExtendedAttrName[];
++
++}  // namespace quarantine
++
++#endif  // COMPONENTS_SERVICES_QUARANTINE_COMMON_LINUX_H_
+diff -urN a/components/services/quarantine/quarantine.cc b/components/services/quarantine/quarantine.cc
+--- a/components/services/quarantine/quarantine.cc	2019-10-27 01:17:57.328896745 +0000
++++ b/components/services/quarantine/quarantine.cc	2019-10-27 01:21:38.329011817 +0000
+@@ -6,7 +6,7 @@
+ 
+ #include "build/build_config.h"
+ 
+-#if !defined(OS_WIN) && !defined(OS_MACOSX)
++#if !defined(OS_WIN) && !defined(OS_MACOSX) && !defined(OS_LINUX)
+ 
+ namespace quarantine {
+ 
+@@ -19,4 +19,4 @@
+ 
+ }  // namespace quarantine
+ 
+-#endif  // !WIN && !MAC
++#endif  // !WIN && !MAC && !LINUX
+diff -urN a/components/services/quarantine/quarantine_linux.cc b/components/services/quarantine/quarantine_linux.cc
+--- a/components/services/quarantine/quarantine_linux.cc	1970-01-01 01:00:00.000000000 +0100
++++ b/components/services/quarantine/quarantine_linux.cc	2019-10-27 01:17:57.328896745 +0000
+@@ -0,0 +1,64 @@
++// Copyright (c) 2012 The Chromium Authors. All rights reserved.
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#include "components/services/quarantine/quarantine.h"
++
++#include <stddef.h>
++#include <sys/types.h>
++#include <sys/xattr.h>
++
++#include "base/files/file_path.h"
++#include "base/logging.h"
++#include "base/threading/scoped_blocking_call.h"
++#include "components/services/quarantine/common_linux.h"
++#include "url/gurl.h"
++
++namespace quarantine {
++
++namespace {
++
++bool SetExtendedFileAttribute(const char* path,
++                              const char* name,
++                              const char* value,
++                              size_t value_size,
++                              int flags) {
++// On Chrome OS, there is no component that can validate these extended
++// attributes so there is no need to set them.
++#if !defined(OS_CHROMEOS)
++  base::ScopedBlockingCall scoped_blocking_call(FROM_HERE, base::BlockingType::MAY_BLOCK);
++  int result = setxattr(path, name, value, value_size, flags);
++  if (result) {
++    DPLOG(ERROR) << "Could not set extended attribute " << name << " on file "
++                 << path;
++    return false;
++  }
++#endif  // !defined(OS_CHROMEOS)
++  return true;
++}
++
++}  // namespace
++
++QuarantineFileResult QuarantineFile(const base::FilePath& file,
++                                    const GURL& source_url,
++                                    const GURL& referrer_url,
++                                    const std::string& client_guid) {
++  bool source_succeeded =
++      source_url.is_valid() &&
++      SetExtendedFileAttribute(file.value().c_str(), kSourceURLExtendedAttrName,
++                               source_url.spec().c_str(),
++                               source_url.spec().length(), 0);
++
++  // Referrer being empty is not considered an error. This could happen if the
++  // referrer policy resulted in an empty referrer for the download request.
++  bool referrer_succeeded =
++      !referrer_url.is_valid() ||
++      SetExtendedFileAttribute(
++          file.value().c_str(), kReferrerURLExtendedAttrName,
++          referrer_url.spec().c_str(), referrer_url.spec().length(), 0);
++  return source_succeeded && referrer_succeeded
++             ? QuarantineFileResult::OK
++             : QuarantineFileResult::ANNOTATION_FAILED;
++}
++
++}  // namespace quarantine
+diff -urN a/components/services/quarantine/quarantine_linux_unittest.cc b/components/services/quarantine/quarantine_linux_unittest.cc
+--- a/components/services/quarantine/quarantine_linux_unittest.cc	1970-01-01 01:00:00.000000000 +0100
++++ b/components/services/quarantine/quarantine_linux_unittest.cc	2019-10-27 01:17:57.328896745 +0000
+@@ -0,0 +1,183 @@
++// Copyright (c) 2012 The Chromium Authors. All rights reserved.
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#include "components/services/quarantine/quarantine.h"
++
++#include <errno.h>
++#include <stddef.h>
++#include <sys/types.h>
++#include <sys/xattr.h>
++
++#include <algorithm>
++#include <sstream>
++#include <string>
++
++#include "base/files/file_path.h"
++#include "base/files/file_util.h"
++#include "base/files/scoped_temp_dir.h"
++#include "base/logging.h"
++#include "base/stl_util.h"
++#include "base/strings/string_split.h"
++#include "components/services/quarantine/common_linux.h"
++#include "components/services/quarantine/test_support.h"
++#include "testing/gtest/include/gtest/gtest.h"
++#include "url/gurl.h"
++
++namespace quarantine {
++namespace {
++
++using std::istringstream;
++using std::string;
++using std::vector;
++
++class QuarantineLinuxTest : public testing::Test {
++ public:
++  QuarantineLinuxTest()
++      : source_url_("http://www.source.com"),
++        referrer_url_("http://www.referrer.com"),
++        is_xattr_supported_(false) {}
++
++  const base::FilePath& test_file() const { return test_file_; }
++
++  const base::FilePath& test_dir() const { return temp_dir_.GetPath(); }
++
++  const GURL& source_url() const { return source_url_; }
++
++  const GURL& referrer_url() const { return referrer_url_; }
++
++  bool is_xattr_supported() const { return is_xattr_supported_; }
++
++ protected:
++  void SetUp() override {
++#if !defined(OS_CHROMEOS)
++    ASSERT_TRUE(temp_dir_.CreateUniqueTempDir());
++    ASSERT_TRUE(
++        base::CreateTemporaryFileInDir(temp_dir_.GetPath(), &test_file_));
++    int result =
++        setxattr(test_file_.value().c_str(), "user.test", "test", 4, 0);
++    is_xattr_supported_ = (!result) || (errno != ENOTSUP);
++#endif  // !defined(OS_CHROMEOS)
++    if (!is_xattr_supported_) {
++      LOG(WARNING) << "Test will be skipped because extended attributes are "
++                      "not supported on this OS/file system.";
++    }
++  }
++
++  void GetExtendedAttributeNames(vector<string>* attr_names) const {
++    ssize_t len = listxattr(test_file().value().c_str(), nullptr, 0);
++    if (len <= static_cast<ssize_t>(0))
++      return;
++    char* buffer = new char[len];
++    len = listxattr(test_file().value().c_str(), buffer, len);
++    *attr_names =
++        base::SplitString(string(buffer, len), std::string(1, '\0'),
++                          base::TRIM_WHITESPACE, base::SPLIT_WANT_ALL);
++    delete[] buffer;
++  }
++
++ private:
++  base::ScopedTempDir temp_dir_;
++  base::FilePath test_file_;
++  GURL source_url_;
++  GURL referrer_url_;
++  bool is_xattr_supported_;
++};
++
++}  // namespace
++
++TEST_F(QuarantineLinuxTest, CheckMetadataSetCorrectly) {
++  if (!is_xattr_supported())
++    return;
++  EXPECT_EQ(
++      QuarantineFileResult::OK,
++      QuarantineFile(test_file(), source_url(), referrer_url(), std::string()));
++  EXPECT_TRUE(IsFileQuarantined(test_file(), source_url(), referrer_url()));
++}
++
++TEST_F(QuarantineLinuxTest, SetMetadataMultipleTimes) {
++  if (!is_xattr_supported())
++    return;
++  GURL dummy_url("http://www.dummy.com");
++  EXPECT_EQ(QuarantineFileResult::OK,
++            QuarantineFile(test_file(), dummy_url, dummy_url, std::string()));
++  EXPECT_EQ(
++      QuarantineFileResult::OK,
++      QuarantineFile(test_file(), source_url(), referrer_url(), std::string()));
++  EXPECT_TRUE(IsFileQuarantined(test_file(), source_url(), referrer_url()));
++}
++
++TEST_F(QuarantineLinuxTest, InvalidSourceURLTest) {
++  if (!is_xattr_supported())
++    return;
++  GURL invalid_url;
++  vector<string> attr_names;
++  EXPECT_EQ(
++      QuarantineFileResult::ANNOTATION_FAILED,
++      QuarantineFile(test_file(), invalid_url, referrer_url(), std::string()));
++  GetExtendedAttributeNames(&attr_names);
++  EXPECT_FALSE(base::ContainsValue(attr_names, kSourceURLExtendedAttrName));
++  EXPECT_TRUE(base::ContainsValue(attr_names, kReferrerURLExtendedAttrName));
++}
++
++TEST_F(QuarantineLinuxTest, InvalidReferrerURLTest) {
++  if (!is_xattr_supported())
++    return;
++  GURL invalid_url;
++  vector<string> attr_names;
++  EXPECT_EQ(
++      QuarantineFileResult::OK,
++      QuarantineFile(test_file(), source_url(), invalid_url, std::string()));
++  GetExtendedAttributeNames(&attr_names);
++  EXPECT_FALSE(base::ContainsValue(attr_names, kReferrerURLExtendedAttrName));
++  EXPECT_TRUE(IsFileQuarantined(test_file(), source_url(), GURL()));
++}
++
++TEST_F(QuarantineLinuxTest, InvalidURLsTest) {
++  if (!is_xattr_supported())
++    return;
++  GURL invalid_url;
++  vector<string> attr_names;
++  EXPECT_EQ(
++      QuarantineFileResult::ANNOTATION_FAILED,
++      QuarantineFile(test_file(), invalid_url, invalid_url, std::string()));
++  GetExtendedAttributeNames(&attr_names);
++  EXPECT_FALSE(base::ContainsValue(attr_names, kSourceURLExtendedAttrName));
++  EXPECT_FALSE(base::ContainsValue(attr_names, kReferrerURLExtendedAttrName));
++  EXPECT_FALSE(IsFileQuarantined(test_file(), GURL(), GURL()));
++}
++
++TEST_F(QuarantineLinuxTest, IsFileQuarantined) {
++  if (!is_xattr_supported())
++    return;
++  base::FilePath does_not_exist = test_dir().AppendASCII("a.jar");
++  EXPECT_FALSE(IsFileQuarantined(does_not_exist, GURL(), GURL()));
++
++  base::FilePath no_annotations = test_dir().AppendASCII("b.jar");
++  ASSERT_EQ(5, base::WriteFile(no_annotations, "Hello", 5));
++  EXPECT_FALSE(IsFileQuarantined(no_annotations, GURL(), GURL()));
++
++  base::FilePath source_only = test_dir().AppendASCII("c.jar");
++  ASSERT_EQ(5, base::WriteFile(source_only, "Hello", 5));
++  ASSERT_EQ(QuarantineFileResult::OK,
++            QuarantineFile(source_only, source_url(), GURL(), std::string()));
++  EXPECT_TRUE(IsFileQuarantined(source_only, source_url(), GURL()));
++  EXPECT_TRUE(IsFileQuarantined(source_only, GURL(), GURL()));
++  EXPECT_TRUE(IsFileQuarantined(source_only, GURL(), referrer_url()));
++  EXPECT_FALSE(IsFileQuarantined(source_only, referrer_url(), GURL()));
++
++  base::FilePath fully_annotated = test_dir().AppendASCII("d.jar");
++  ASSERT_EQ(5, base::WriteFile(fully_annotated, "Hello", 5));
++  ASSERT_EQ(QuarantineFileResult::OK,
++            QuarantineFile(fully_annotated, source_url(), referrer_url(),
++                           std::string()));
++  EXPECT_TRUE(IsFileQuarantined(fully_annotated, GURL(), GURL()));
++  EXPECT_TRUE(IsFileQuarantined(fully_annotated, source_url(), GURL()));
++  EXPECT_TRUE(IsFileQuarantined(fully_annotated, source_url(), referrer_url()));
++  EXPECT_TRUE(IsFileQuarantined(fully_annotated, GURL(), referrer_url()));
++  EXPECT_FALSE(IsFileQuarantined(fully_annotated, source_url(), source_url()));
++  EXPECT_FALSE(
++      IsFileQuarantined(fully_annotated, referrer_url(), referrer_url()));
++}
++
++}  // namespace quarantine
+diff -urN a/components/services/quarantine/test_support.cc b/components/services/quarantine/test_support.cc
+--- a/components/services/quarantine/test_support.cc	2019-10-27 01:17:57.328896745 +0000
++++ b/components/services/quarantine/test_support.cc	2019-10-27 01:21:51.125965714 +0000
+@@ -6,7 +6,7 @@
+ 
+ #include "build/build_config.h"
+ 
+-#if !defined(OS_WIN) && !defined(OS_MACOSX)
++#if !defined(OS_WIN) && !defined(OS_MACOSX) && !defined(OS_LINUX)
+ 
+ namespace quarantine {
+ 
+@@ -18,4 +18,4 @@
+ 
+ }  // namespace quarantine
+ 
+-#endif  // !WIN && !MAC
++#endif  // !WIN && !MAC && !LINUX
+diff -urN a/components/services/quarantine/test_support_linux.cc b/components/services/quarantine/test_support_linux.cc
+--- a/components/services/quarantine/test_support_linux.cc	1970-01-01 01:00:00.000000000 +0100
++++ b/components/services/quarantine/test_support_linux.cc	2019-10-27 01:17:57.328896745 +0000
+@@ -0,0 +1,58 @@
++// Copyright 2018 The Chromium Authors. All rights reserved.
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#include "components/services/quarantine/test_support.h"
++
++#include <stddef.h>
++#include <sys/types.h>
++#include <sys/xattr.h>
++
++#include <string>
++
++#include "base/files/file_path.h"
++#include "base/files/file_util.h"
++#include "base/threading/scoped_blocking_call.h"
++#include "components/services/quarantine/common_linux.h"
++#include "url/gurl.h"
++
++namespace quarantine {
++
++namespace {
++
++std::string GetExtendedFileAttribute(const char* path, const char* name) {
++  base::ScopedBlockingCall scoped_blocking_call(FROM_HERE, base::BlockingType::MAY_BLOCK);
++  ssize_t len = getxattr(path, name, nullptr, 0);
++  if (len <= 0)
++    return std::string();
++
++  std::vector<char> buffer(len);
++  len = getxattr(path, name, buffer.data(), buffer.size());
++  if (len < static_cast<ssize_t>(buffer.size()))
++    return std::string();
++  return std::string(buffer.begin(), buffer.end());
++}
++
++}  // namespace
++
++bool IsFileQuarantined(const base::FilePath& file,
++                       const GURL& source_url,
++                       const GURL& referrer_url) {
++  if (!base::PathExists(file))
++    return false;
++
++  std::string url_value = GetExtendedFileAttribute(file.value().c_str(),
++                                                   kSourceURLExtendedAttrName);
++  if (source_url.is_empty())
++    return !url_value.empty();
++
++  if (source_url != GURL(url_value))
++    return false;
++
++  return !referrer_url.is_valid() ||
++         GURL(GetExtendedFileAttribute(file.value().c_str(),
++                                       kReferrerURLExtendedAttrName)) ==
++             referrer_url;
++}
++
++}  // namespace quarantine
