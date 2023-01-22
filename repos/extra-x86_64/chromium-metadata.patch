@@ -1,16 +1,17 @@
-diff -urN a/chrome/browser/download/download_browsertest.cc b/chrome/browser/download/download_browsertest.cc
---- a/chrome/browser/download/download_browsertest.cc	2022-10-25 23:33:30.422209444 +0100
-+++ b/chrome/browser/download/download_browsertest.cc	2022-10-25 23:44:17.489716824 +0100
-@@ -1501,7 +1501,7 @@
+diff --git a/chrome/browser/download/download_browsertest.cc b/chrome/browser/download/download_browsertest.cc
+index df663efa03158..a1a6381ffb83d 100644
+--- a/chrome/browser/download/download_browsertest.cc
++++ b/chrome/browser/download/download_browsertest.cc
+@@ -1523,7 +1523,7 @@ IN_PROC_BROWSER_TEST_F(DownloadTest, DownloadMimeType) {
    CheckDownload(browser(), file, file);
  }
  
 -#if BUILDFLAG(IS_WIN)
-+#if BUILDFLAG(IS_WIN) || (BUILDFLAG(IS_LINUX) && !BUILDFLAG(IS_CHROMEOS))
++#if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_LINUX)
  // Download a file and confirm that the file is correctly quarantined.
  //
  // TODO(asanka): We should enable the test on Mac as well, but currently
-@@ -1525,7 +1525,9 @@
+@@ -1547,7 +1547,9 @@ IN_PROC_BROWSER_TEST_F(DownloadTest, Quarantine_DependsOnLocalConfig) {
    EXPECT_TRUE(quarantine::IsFileQuarantined(downloaded_file, url, GURL()));
    CheckDownload(browser(), file, file);
  }
@@ -20,15 +21,16 @@ diff -urN a/chrome/browser/download/download_browsertest.cc b/chrome/browser/dow
  // A couple of Windows specific tests to make sure we respect OS specific
  // restrictions on Mark-Of-The-Web can be applied. While Chrome doesn't directly
  // apply these policies, Chrome still needs to make sure the correct APIs are
-diff -urN a/chrome/test/ppapi/ppapi_filechooser_browsertest.cc b/chrome/test/ppapi/ppapi_filechooser_browsertest.cc
---- a/chrome/test/ppapi/ppapi_filechooser_browsertest.cc	2022-10-25 23:33:30.422209444 +0100
-+++ b/chrome/test/ppapi/ppapi_filechooser_browsertest.cc	2022-10-25 23:39:35.400560127 +0100
-@@ -237,12 +237,17 @@
+diff --git a/chrome/test/ppapi/ppapi_filechooser_browsertest.cc b/chrome/test/ppapi/ppapi_filechooser_browsertest.cc
+index ab2306e406dd3..2588de779c12b 100644
+--- a/chrome/test/ppapi/ppapi_filechooser_browsertest.cc
++++ b/chrome/test/ppapi/ppapi_filechooser_browsertest.cc
+@@ -237,12 +237,17 @@ IN_PROC_BROWSER_TEST_F(PPAPIFileChooserTest, FileChooser_SaveAs_Cancel) {
    RunTestViaHTTP("FileChooser_SaveAsCancel");
  }
  
 -#if BUILDFLAG(IS_WIN)
-+#if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_LINUX) && !BUILDFLAG(IS_CHROMEOS)
++#if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_LINUX)
  // On Windows, tests that a file downloaded via PPAPI FileChooser API has the
  // mark-of-the-web. The PPAPI FileChooser implementation invokes QuarantineFile
  // in order to mark the file as being downloaded from the web as soon as the
@@ -42,66 +44,71 @@ diff -urN a/chrome/test/ppapi/ppapi_filechooser_browsertest.cc b/chrome/test/ppa
  IN_PROC_BROWSER_TEST_F(PPAPIFileChooserTest, FileChooser_Quarantine) {
    base::ScopedAllowBlockingForTesting allow_blocking;
    base::ScopedTempDir temp_dir;
-@@ -262,7 +267,7 @@
+@@ -262,7 +267,7 @@ IN_PROC_BROWSER_TEST_F(PPAPIFileChooserTest, FileChooser_Quarantine) {
    ASSERT_TRUE(base::PathExists(actual_filename));
    EXPECT_TRUE(quarantine::IsFileQuarantined(actual_filename, GURL(), GURL()));
  }
 -#endif  // BUILDFLAG(IS_WIN)
-+#endif  // BUILDFLAG(IS_WIN) || BUILDFLAG(IS_LINUX) && !BUILDFLAG(IS_CHROMEOS)
++#endif  // BUILDFLAG(IS_WIN) || BUILDFLAG(IS_LINUX)
  
  #if BUILDFLAG(FULL_SAFE_BROWSING)
  // These tests only make sense when SafeBrowsing is enabled. They verify
-diff -urN a/components/services/quarantine/BUILD.gn b/components/services/quarantine/BUILD.gn
---- a/components/services/quarantine/BUILD.gn	2022-10-25 23:33:30.422209444 +0100
-+++ b/components/services/quarantine/BUILD.gn	2022-10-25 23:38:32.690788601 +0100
-@@ -37,6 +37,10 @@
-     ]
-   }
+diff --git a/components/services/quarantine/BUILD.gn b/components/services/quarantine/BUILD.gn
+index 55ae19421c9dd..5988ccd3428a2 100644
+--- a/components/services/quarantine/BUILD.gn
++++ b/components/services/quarantine/BUILD.gn
+@@ -25,6 +25,10 @@ static_library("quarantine") {
+     "//url",
+   ]
  
 +  if (is_linux) {
 +    sources += [ "quarantine_linux.cc" ]
 +  }
 +
-   if (is_chromeos) {
-     sources += [ "quarantine_chromeos.cc" ]
-     deps += [
-@@ -74,6 +78,13 @@
-       "Foundation.framework",
-     ]
+   if (is_win) {
+     sources += [ "quarantine_win.cc" ]
    }
-+
+@@ -57,6 +61,13 @@ source_set("common") {
+     "//url",
+   ]
+ 
 +  if (is_linux) {
 +    sources += [
 +      "common_linux.cc",
 +      "common_linux.h",
 +    ]
 +  }
- }
- 
- source_set("test_support") {
-@@ -102,6 +113,10 @@
-       "Foundation.framework",
-     ]
-   }
 +
+   if (is_win) {
+     sources += [
+       "common_win.cc",
+@@ -91,6 +102,10 @@ source_set("test_support") {
+     "//url",
+   ]
+ 
 +  if (is_linux) {
 +    sources += [ "test_support_linux.cc" ]
 +  }
- }
- 
- source_set("unit_tests") {
-@@ -144,4 +159,8 @@
-       "Foundation.framework",
-     ]
-   }
 +
+   if (is_win) {
+     sources += [ "test_support_win.cc" ]
+   }
+@@ -133,6 +148,10 @@ source_set("unit_tests") {
+     "//url",
+   ]
+ 
 +  if (is_linux) {
 +    sources += [ "quarantine_linux_unittest.cc" ]
 +  }
- }
-diff -urN a/components/services/quarantine/common_linux.cc b/components/services/quarantine/common_linux.cc
---- a/components/services/quarantine/common_linux.cc	1970-01-01 01:00:00.000000000 +0100
-+++ b/components/services/quarantine/common_linux.cc	2022-10-25 23:33:30.428876072 +0100
++
+   if (is_win) {
+     sources += [ "quarantine_win_unittest.cc" ]
+   }
+diff --git a/components/services/quarantine/common_linux.cc b/components/services/quarantine/common_linux.cc
+new file mode 100644
+index 0000000000000..2598d733d800b
+--- /dev/null
++++ b/components/services/quarantine/common_linux.cc
 @@ -0,0 +1,12 @@
 +// Copyright 2018 The Chromium Authors. All rights reserved.
 +// Use of this source code is governed by a BSD-style license that can be
@@ -115,9 +122,11 @@ diff -urN a/components/services/quarantine/common_linux.cc b/components/services
 +const char kReferrerURLExtendedAttrName[] = "user.xdg.referrer.url";
 +
 +}  // namespace quarantine
-diff -urN a/components/services/quarantine/common_linux.h b/components/services/quarantine/common_linux.h
---- a/components/services/quarantine/common_linux.h	1970-01-01 01:00:00.000000000 +0100
-+++ b/components/services/quarantine/common_linux.h	2022-10-25 23:33:30.428876072 +0100
+diff --git a/components/services/quarantine/common_linux.h b/components/services/quarantine/common_linux.h
+new file mode 100644
+index 0000000000000..6025197e47dad
+--- /dev/null
++++ b/components/services/quarantine/common_linux.h
 @@ -0,0 +1,21 @@
 +// Copyright 2018 The Chromium Authors. All rights reserved.
 +// Use of this source code is governed by a BSD-style license that can be
@@ -140,28 +149,31 @@ diff -urN a/components/services/quarantine/common_linux.h b/components/services/
 +}  // namespace quarantine
 +
 +#endif  // COMPONENTS_SERVICES_QUARANTINE_COMMON_LINUX_H_
-diff -urN a/components/services/quarantine/quarantine.cc b/components/services/quarantine/quarantine.cc
---- a/components/services/quarantine/quarantine.cc	2022-10-25 23:33:30.422209444 +0100
-+++ b/components/services/quarantine/quarantine.cc	2022-10-25 23:35:59.924764286 +0100
+diff --git a/components/services/quarantine/quarantine.cc b/components/services/quarantine/quarantine.cc
+index 994fc0e5f3cdb..d58a0c2c1d063 100644
+--- a/components/services/quarantine/quarantine.cc
++++ b/components/services/quarantine/quarantine.cc
 @@ -6,7 +6,7 @@
  
  #include "build/build_config.h"
  
 -#if !BUILDFLAG(IS_WIN) && !BUILDFLAG(IS_APPLE) && !BUILDFLAG(IS_CHROMEOS)
-+#if !BUILDFLAG(IS_WIN) && !BUILDFLAG(IS_APPLE) && !BUILDFLAG(IS_CHROMEOS) && !BUILDFLAG(IS_LINUX)
++#if !BUILDFLAG(IS_WIN) && !BUILDFLAG(IS_APPLE) && !BUILDFLAG(IS_LINUX) && !BUILDFLAG(IS_CHROMEOS)
  
  namespace quarantine {
  
-@@ -20,4 +20,4 @@
+@@ -20,4 +20,4 @@ void QuarantineFile(const base::FilePath& file,
  
  }  // namespace quarantine
  
 -#endif  // !WIN && !MAC && !CHROMEOS
-+#endif  // !WIN && !MAC && !CHROMEOS && !LINUX && !LINUX
-diff -urN a/components/services/quarantine/quarantine_linux.cc b/components/services/quarantine/quarantine_linux.cc
---- a/components/services/quarantine/quarantine_linux.cc	1970-01-01 01:00:00.000000000 +0100
-+++ b/components/services/quarantine/quarantine_linux.cc	2022-10-25 23:33:30.428876072 +0100
-@@ -0,0 +1,64 @@
++#endif  // !WIN && !MAC && !LINUX && !CHROMEOS
+diff --git a/components/services/quarantine/quarantine_linux.cc b/components/services/quarantine/quarantine_linux.cc
+new file mode 100644
+index 0000000000000..57798f3aa22aa
+--- /dev/null
++++ b/components/services/quarantine/quarantine_linux.cc
+@@ -0,0 +1,63 @@
 +// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 +// Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
@@ -187,9 +199,6 @@ diff -urN a/components/services/quarantine/quarantine_linux.cc b/components/serv
 +                              const char* value,
 +                              size_t value_size,
 +                              int flags) {
-+// On Chrome OS, there is no component that can validate these extended
-+// attributes so there is no need to set them.
-+#if !defined(OS_CHROMEOS)
 +  base::ScopedBlockingCall scoped_blocking_call(FROM_HERE, base::BlockingType::MAY_BLOCK);
 +  int result = setxattr(path, name, value, value_size, flags);
 +  if (result) {
@@ -197,16 +206,16 @@ diff -urN a/components/services/quarantine/quarantine_linux.cc b/components/serv
 +                 << path;
 +    return false;
 +  }
-+#endif  // !defined(OS_CHROMEOS)
 +  return true;
 +}
 +
 +}  // namespace
 +
-+QuarantineFileResult QuarantineFile(const base::FilePath& file,
-+                                    const GURL& source_url,
-+                                    const GURL& referrer_url,
-+                                    const std::string& client_guid) {
++void QuarantineFile(const base::FilePath& file,
++                    const GURL& source_url,
++                    const GURL& referrer_url,
++                    const std::string& client_guid,
++                    mojom::Quarantine::QuarantineFileCallback callback) {
 +  bool source_succeeded =
 +      source_url.is_valid() &&
 +      SetExtendedFileAttribute(file.value().c_str(), kSourceURLExtendedAttrName,
@@ -220,16 +229,20 @@ diff -urN a/components/services/quarantine/quarantine_linux.cc b/components/serv
 +      SetExtendedFileAttribute(
 +          file.value().c_str(), kReferrerURLExtendedAttrName,
 +          referrer_url.spec().c_str(), referrer_url.spec().length(), 0);
-+  return source_succeeded && referrer_succeeded
-+             ? QuarantineFileResult::OK
-+             : QuarantineFileResult::ANNOTATION_FAILED;
++  if (source_succeeded && referrer_succeeded) {
++    std::move(callback).Run(QuarantineFileResult::OK);
++  } else {
++    std::move(callback).Run(QuarantineFileResult::ANNOTATION_FAILED);
++  }
 +}
 +
 +}  // namespace quarantine
-diff -urN a/components/services/quarantine/quarantine_linux_unittest.cc b/components/services/quarantine/quarantine_linux_unittest.cc
---- a/components/services/quarantine/quarantine_linux_unittest.cc	1970-01-01 01:00:00.000000000 +0100
-+++ b/components/services/quarantine/quarantine_linux_unittest.cc	2022-10-25 23:33:30.428876072 +0100
-@@ -0,0 +1,183 @@
+diff --git a/components/services/quarantine/quarantine_linux_unittest.cc b/components/services/quarantine/quarantine_linux_unittest.cc
+new file mode 100644
+index 0000000000000..894d17559e153
+--- /dev/null
++++ b/components/services/quarantine/quarantine_linux_unittest.cc
+@@ -0,0 +1,181 @@
 +// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 +// Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
@@ -282,14 +295,12 @@ diff -urN a/components/services/quarantine/quarantine_linux_unittest.cc b/compon
 +
 + protected:
 +  void SetUp() override {
-+#if !defined(OS_CHROMEOS)
 +    ASSERT_TRUE(temp_dir_.CreateUniqueTempDir());
 +    ASSERT_TRUE(
 +        base::CreateTemporaryFileInDir(temp_dir_.GetPath(), &test_file_));
 +    int result =
 +        setxattr(test_file_.value().c_str(), "user.test", "test", 4, 0);
 +    is_xattr_supported_ = (!result) || (errno != ENOTSUP);
-+#endif  // !defined(OS_CHROMEOS)
 +    if (!is_xattr_supported_) {
 +      LOG(WARNING) << "Test will be skipped because extended attributes are "
 +                      "not supported on this OS/file system.";
@@ -413,9 +424,10 @@ diff -urN a/components/services/quarantine/quarantine_linux_unittest.cc b/compon
 +}
 +
 +}  // namespace quarantine
-diff -urN a/components/services/quarantine/test_support.cc b/components/services/quarantine/test_support.cc
---- a/components/services/quarantine/test_support.cc	2022-10-25 23:33:30.422209444 +0100
-+++ b/components/services/quarantine/test_support.cc	2022-10-25 23:35:03.135040095 +0100
+diff --git a/components/services/quarantine/test_support.cc b/components/services/quarantine/test_support.cc
+index 5e8ac809e909e..6ed1265ef52dd 100644
+--- a/components/services/quarantine/test_support.cc
++++ b/components/services/quarantine/test_support.cc
 @@ -6,7 +6,7 @@
  
  #include "build/build_config.h"
@@ -425,15 +437,17 @@ diff -urN a/components/services/quarantine/test_support.cc b/components/services
  
  namespace quarantine {
  
-@@ -18,4 +18,4 @@
+@@ -18,4 +18,4 @@ bool IsFileQuarantined(const base::FilePath& file,
  
  }  // namespace quarantine
  
 -#endif  // !WIN && !MAC
 +#endif  // !WIN && !MAC && !LINUX
-diff -urN a/components/services/quarantine/test_support_linux.cc b/components/services/quarantine/test_support_linux.cc
---- a/components/services/quarantine/test_support_linux.cc	1970-01-01 01:00:00.000000000 +0100
-+++ b/components/services/quarantine/test_support_linux.cc	2022-10-25 23:33:30.428876072 +0100
+diff --git a/components/services/quarantine/test_support_linux.cc b/components/services/quarantine/test_support_linux.cc
+new file mode 100644
+index 0000000000000..42d88b7e5e0e5
+--- /dev/null
++++ b/components/services/quarantine/test_support_linux.cc
 @@ -0,0 +1,58 @@
 +// Copyright 2018 The Chromium Authors. All rights reserved.
 +// Use of this source code is governed by a BSD-style license that can be
